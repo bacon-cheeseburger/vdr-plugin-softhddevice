@@ -8061,6 +8061,15 @@ static inline void VdpauGetProc(const VdpFuncId id, void *addr,
 	    VdpauGetErrorString(status));
 	// FIXME: rewrite none fatal
     }
+    else
+    {
+	Debug(3, "video/vdpau: Got function address of '%s': %x\n", name, addr);
+    }
+}
+
+void GetVDPAUProc(const uint32_t id, void *addr, const char *name)
+{
+    VdpauGetProc(id, addr, name);
 }
 
 ///
@@ -11479,6 +11488,9 @@ void VideoOsdDrawARGB(int xi, int yi, int width, int height, int pitch,
 }
 
 void ActivateOsd(void) {
+#ifdef USE_GLES2
+    VideoDisplayWakeup();
+#endif
     OsdShown = 1;
 }
 
