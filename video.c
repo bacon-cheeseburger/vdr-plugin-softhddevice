@@ -515,7 +515,9 @@ static int OsdDirtyX;			///< osd dirty area x
 static int OsdDirtyY;			///< osd dirty area y
 static int OsdDirtyWidth;		///< osd dirty area width
 static int OsdDirtyHeight;		///< osd dirty area height
-
+#ifdef USE_OPENGLOSD
+static void (*VideoEventCallback)(void) = NULL;  /// callback function to notify VDR about Video Events
+#endif
 static int64_t VideoDeltaPTS;		///< FIXME: fix pts
 
 #ifdef USE_SCREENSAVER
@@ -8213,6 +8215,7 @@ static int VdpauInit(const char *display_name)
     status =
 	vdp_device_create_x11(XlibDisplay, DefaultScreen(XlibDisplay),
 	&VdpauDevice, &VdpauGetProcAddress);
+
     if (status != VDP_STATUS_OK) {
 	Error(_("video/vdpau: Can't create vdp device on display '%s'\n"),
 	    display_name);
@@ -10891,9 +10894,18 @@ static void VdpauDisplayHandlerThread(void)
 
     if (!decoded) {			// nothing decoded, sleep
 	// FIXME: sleep on wakeup
-	usleep(1 * 1000);
+	//usleep(1 * 1000);
+	usleep(5 * 1000);
     }
-    // all decoder buffers are full
+
+	clock_gettime(CLOCK_MONOTONIC, &nowtime);
+    // time for one frame over?
+    if ((nowtime.tv_sec - VdpauFrameTime.tv_sec) * 1000 * 1000 * 1000 +
+	(nowtime.tv_nsec - VdpauFrameTime.tv_nsec) < 15 * 1000 * 1000) {
+	return;
+    }
+/*
+	// all decoder buffers are full
     // and display is not preempted
     // speed up filling display queue, wait on display queue empty
     if (!allfull || VdpauPreemption) {
@@ -10911,7 +10923,7 @@ static void VdpauDisplayHandlerThread(void)
 	    return;
 	}
     }
-
+*/
     pthread_mutex_lock(&VideoLockMutex);
     VdpauSyncDisplayFrame();
     pthread_mutex_unlock(&VideoLockMutex);
@@ -11142,13 +11154,13 @@ static void VdpauOsdInit(int width, int height)
 		Error(_("video/vdpau: can't create output surface: %s\n"),
 		    VdpauGetErrorString(status));
 	    }
-	    Debug(4,
-		"video/vdpau: created osd output surface %dx%d with id 0x%08x\n",
+	    Debug(3,
+		"[softhddev]video/vdpau: created osd output surface %dx%d with id 0x%08x\n",
 		width, height, VdpauOsdOutputSurface[i]);
 	}
     }
 #endif
-    Debug(3, "video/vdpau: osd surfaces created\n");
+    Debug(3, "[softhddev]video/vdpau: osd surfaces created\n");
 }
 
 ///
@@ -11466,6 +11478,21 @@ void VideoOsdDrawARGB(int xi, int yi, int width, int height, int pitch,
     VideoThreadUnlock();
 }
 
+void ActivateOsd(void) {
+    OsdShown = 1;
+}
+
+void *GetVDPAUDevice(void) {
+    return (void*)VdpauDevice;
+}
+void *GetVDPAUProcAdress(void) {
+    return (void*)VdpauGetProcAddress;
+}
+
+void *GetVDPAUOutputSurface(void) {
+    return (void*)VdpauOsdOutputSurface[VdpauOsdSurfaceIndex];
+}
+
 ///
 ///	Get OSD size.
 ///
@@ -11707,7 +11734,12 @@ void VideoPollEvent(void)
 	VideoEvent();
     }
 }
-
+#ifdef USE_OPENGLOSD
+void VideoSetVideoEventCallback(void (*videoEventCallback)(void))
+{
+    VideoEventCallback = videoEventCallback;
+}
+#endif
 //----------------------------------------------------------------------------
 //	Thread
 //----------------------------------------------------------------------------
@@ -13062,8 +13094,11 @@ void VideoSetVideoMode( __attribute__ ((unused))
 	return;				// same size nothing todo
     }
 
+#ifdef USE_OPENGLOSD
+    if (VideoEventCallback)
+        VideoEventCallback();
+#endif
     VideoOsdExit();
-    // FIXME: must tell VDR that the OsdSize has been changed!
 
     VideoThreadLock();
     VideoWindowWidth = width;

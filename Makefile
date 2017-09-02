@@ -32,20 +32,23 @@ ifneq ($(SWRESAMPLE),1)
 AVRESAMPLE ?= $(shell pkg-config --exists libavresample && echo 1)
 endif
 
-#CONFIG := -DDEBUG #-DOSD_DEBUG	# enable debug output+functions
-#CONFIG += -DSTILL_DEBUG=2		# still picture debug verbose level
+OPENGLOSD ?= 1
 
-CONFIG += -DAV_INFO -DAV_INFO_TIME=3000	# info/debug a/v sync
-CONFIG += -DUSE_PIP			# PIP support
-CONFIG += -DHAVE_PTHREAD_NAME		# supports new pthread_setname_np
-#CONFIG += -DNO_TS_AUDIO		# disable ts audio parser
-#CONFIG += -DUSE_TS_VIDEO		# build new ts video parser
-CONFIG += -DUSE_MPEG_COMPLETE		# support only complete mpeg packets
-CONFIG += -DH264_EOS_TRICKSPEED		# insert seq end packets for trickspeed
-#CONDIF += -DDUMP_TRICKSPEED		# dump trickspeed packets
-#CONFIG += -DUSE_BITMAP			# VDPAU, use bitmap surface for OSD
-CONFIG += -DUSE_VDR_SPU			# use VDR SPU decoder.
-#CONFIG += -DUSE_SOFTLIMIT		# (tobe removed) limit the buffer fill
+#CONFIG := -DDEBUG #				enable debug output
+#CONFIG += -DOSD_DEBUG #			enable debug functions
+#CONFIG += -DSTILL_DEBUG=2 #			still picture debug verbose level
+
+#CONFIG += -DAV_INFO -DAV_INFO_TIME=3000 #	info/debug a/v sync
+CONFIG += -DUSE_PIP #				PIP support
+CONFIG += -DHAVE_PTHREAD_NAME #			supports new pthread_setname_np
+#CONFIG += -DNO_TS_AUDIO #			disable ts audio parser
+#CONFIG += -DUSE_TS_VIDEO #			build new ts video parser
+CONFIG += -DUSE_MPEG_COMPLETE #			support only complete mpeg packets
+CONFIG += -DH264_EOS_TRICKSPEED #		insert seq end packets for trickspeed
+#CONDIF += -DDUMP_TRICKSPEED #			dump trickspeed packets
+#CONFIG += -DUSE_BITMAP #			VDPAU, use bitmap surface for OSD
+CONFIG += -DUSE_VDR_SPU #			use VDR SPU decoder.
+#CONFIG += -DUSE_SOFTLIMIT #			(tobe removed) limit the buffer fill
 
 ### The version number of this plugin (taken from the main source file):
 
@@ -141,6 +144,14 @@ _CFLAGS += $(shell pkg-config --cflags libavresample)
 LIBS += $(shell pkg-config --libs libavresample)
 endif
 
+ifeq ($(OPENGLOSD),1)
+CONFIG += -DUSE_OPENGLOSD
+_CFLAGS += $(shell pkg-config --cflags glew)
+LIBS += $(shell pkg-config --libs glew) -lglut
+_CFLAGS += $(shell pkg-config --cflags freetype2)
+LIBS   += $(shell pkg-config --libs freetype2)
+endif
+
 _CFLAGS += $(shell pkg-config --cflags libavcodec x11 x11-xcb xcb xcb-icccm)
 LIBS += -lrt $(shell pkg-config --libs libavcodec x11 x11-xcb xcb xcb-icccm)
 
@@ -154,13 +165,16 @@ DEFINES += -DPLUGIN_NAME_I18N='"$(PLUGIN)"' -D_GNU_SOURCE $(CONFIG) \
 ### Make it standard
 
 override CXXFLAGS += $(_CFLAGS) $(DEFINES) $(INCLUDES) \
-    -g -W -Wall -Wextra -Winit-self -Werror=overloaded-virtual
+    -g -W -Wall -Wextra -Winit-self -Werror=overloaded-virtual -std=c++0x
 override CFLAGS	  += $(_CFLAGS) $(DEFINES) $(INCLUDES) \
     -g -W -Wall -Wextra -Winit-self -Wdeclaration-after-statement
 
 ### The object files (add further files here):
 
 OBJS = $(PLUGIN).o softhddev.o video.o audio.o codec.o ringbuffer.o
+ifeq ($(OPENGLOSD),1)
+OBJS += openglosd.o
+endif
 
 SRCS = $(wildcard $(OBJS:.o=.c)) $(PLUGIN).cpp
 
