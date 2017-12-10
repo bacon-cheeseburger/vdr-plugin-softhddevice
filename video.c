@@ -2770,7 +2770,10 @@ static int VaapiInit(const char *display_name)
     setenv("DISPLAY", display_name, 1);
 
 #ifndef DEBUG
-#if VA_CHECK_VERSION(0,40,0)
+#if VA_CHECK_VERSION(1,0,0)
+    vaSetErrorCallback(VaDisplay, NULL, NULL);
+    vaSetInfoCallback(VaDisplay, NULL, NULL);
+#elif VA_CHECK_VERSION(0,40,0)
     vaSetErrorCallback(NULL);
     vaSetInfoCallback(NULL);
 #endif
@@ -3134,6 +3137,7 @@ static VAStatus VaapiPostprocessSurface(VAContextID ctx,
         return va_status;
     }
     vaEndPicture(VaDisplay, ctx);
+    vaDestroyBuffer(VaDisplay, pipeline_buf);
     return VA_STATUS_SUCCESS;
 }
 
@@ -10974,7 +10978,7 @@ static void VdpauSetOutputPosition(VdpauDecoder * decoder, int x, int y,
 //	VDPAU OSD
 //----------------------------------------------------------------------------
 
-static const uint8_t OsdZeros[1920 * 1200 * 4];	///< 0 for clear osd
+static const uint8_t OsdZeros[4096 * 2160 * 4];	///< 0 for clear osd
 
 ///
 ///	Clear subpicture image.
@@ -11002,7 +11006,7 @@ static void VdpauOsdClear(void)
     }
 #endif
 
-    if (OsdWidth * OsdHeight > 1920 * 1200) {
+    if (OsdWidth * OsdHeight > 4096 * 2160) {
 	Error(_("video/vdpau: osd too big: unsupported\n"));
 	return;
     }
